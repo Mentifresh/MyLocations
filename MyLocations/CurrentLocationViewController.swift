@@ -43,7 +43,15 @@ class CurrentLocationViewController: UIViewController, CLLocationManagerDelegate
             return
         }
         
-        startLocationManager()
+        // Allow user to stop retrieving location
+        if updatingLocation {
+            stopLocationManager()
+        } else {
+            location = nil
+            lastLocationError = nil
+            startLocationManager()
+        }
+        
         updateLabels()
     }
     
@@ -61,12 +69,32 @@ class CurrentLocationViewController: UIViewController, CLLocationManagerDelegate
     }
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        location = locations.last!
-        print("didUpdateLocations \(location)")
+        let newLocation = locations.last!
+        print("didUpdateLocations \(newLocation)")
         
-        updateLabels()
-        lastLocationError = nil
+        // If location is from long ago, it's from cache, ignore it
+        if newLocation.timestamp.timeIntervalSinceNow < -5 {
+            return
+        }
         
+        // If accuracy is negative, ignore it
+        if newLocation.horizontalAccuracy < 0 {
+            return
+        }
+        
+        // New reading more useful than previous one ?
+        // Larger accuracy value = less accurate
+        if location == nil || location!.horizontalAccuracy < newLocation.horizontalAccuracy {
+            lastLocationError = nil
+            location = newLocation
+            
+            // If accuracy is as good or better than the one we wanted, stop retrieving location
+            if newLocation.horizontalAccuracy <= locationManager.desiredAccuracy {
+                print("Done retrieving location!")
+                stopLocationManager()
+            }
+            updateLabels()
+        }
     }
     
     // MARK: - Helper Methods
@@ -136,6 +164,15 @@ class CurrentLocationViewController: UIViewController, CLLocationManagerDelegate
                 statusMessage = "Tap 'Get My Location' to Start"
             }
             messageLabel.text = statusMessage
+            configureGetButton()
+        }
+    }
+    
+    private func configureGetButton() {
+        if updatingLocation {
+            getButton.setTitle("Stop", for: .normal)
+        } else {
+            getButton.setTitle("Get My Location", for: .normal)
         }
     }
 }
